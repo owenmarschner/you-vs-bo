@@ -10,16 +10,16 @@ export const escapeXML = value => String(value).replace(/[<>&"']/g, char => ({
 })[char]);
 export const number = value => Number(value).toLocaleString('en-GB', { maximumFractionDigits: 2 });
 
-function frame({ title, subtitle = '', ymin = 0, ymax = 1.8, height = 440, label = 'Function value f(x)', compact = false }) {
+function frame({ title, subtitle = '', legend = [], ymin = 0, ymax = 1.8, height = 440, label = 'Function value f(x)', compact = false }) {
   const clip = 'clip-' + title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const w = 960, left = 82, right = 32, top = compact ? 60 : 76, bottom = compact ? 40 : 62;
   const pw = w - left - right, ph = height - top - bottom;
   const X = x => left + x * pw;
   const Y = y => top + (ymax - y) / (ymax - ymin) * ph;
-  let markup = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${height}" role="img" aria-label="${escapeXML(title + '. ' + subtitle)}" style="font-family:system-ui,sans-serif;background:#fff;color:${INK}">
+  let markup = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${height}" role="img" aria-label="${escapeXML([title, subtitle, ...legend.map(item => item.label)].filter(Boolean).join('. '))}" style="font-family:system-ui,sans-serif;background:#fff;color:${INK}">
     <rect width="${w}" height="${height}" fill="white"/>
     <text x="${left}" y="29" font-size="20" font-weight="650" fill="${INK}">${escapeXML(title)}</text>
-    <text x="${left}" y="52" font-size="13" fill="#52677a">${escapeXML(subtitle)}</text>
+    ${legend.length ? plotLegend(legend, left) : `<text x="${left}" y="52" font-size="13" fill="#52677a">${escapeXML(subtitle)}</text>`}
     <defs><clipPath id="${clip}"><rect x="${left - 9}" y="${top - 9}" width="${pw + 18}" height="${ph + 18}"/></clipPath></defs>`;
   const ticks = compact && ph < 80 ? 2 : 4;
   for (let i = 0; i <= ticks; i++) {
@@ -46,6 +46,27 @@ function marker(point, X, Y, colour, shape = 'circle', size = 5) {
     ? `<path d="M${x},${y - size - 1}l${size + 1},${size + 1}l-${size + 1},${size + 1}l-${size + 1},-${size + 1}Z" fill="${colour}" stroke="white" stroke-width="1.4"/>`
     : `<circle cx="${x}" cy="${y}" r="${size}" fill="${colour}" stroke="white" stroke-width="1.5"/>`;
 }
+function plotLegend(items, left) {
+  let x = left;
+  return items.map(({ label, colour, shape, dashed, width }) => {
+    let sample;
+    if (shape === 'line') {
+      sample = `<path d="M${x},47h18" fill="none" stroke="${colour}" stroke-width="2.5"${dashed ? ' stroke-dasharray="5 4"' : ''}/>`;
+    } else if (shape === 'band') {
+      sample = `<rect x="${x}" y="41" width="18" height="12" fill="${colour}"/>`;
+    } else {
+      sample = marker({ x: x + 9, y: 47 }, value => value, value => value, colour, shape);
+    }
+    const text = `<text x="${x + 25}" y="52" font-size="13" fill="${INK}">${escapeXML(label)}</text>`;
+    x += width;
+    return sample + text;
+  }).join('');
+}
+
+const SHARED = { label: 'Shared starting observations', colour: PURPLE, shape: 'square', width: 220 };
+const BO = { label: 'BO evaluations', colour: ORANGE, shape: 'diamond', width: 135 };
+const FUNCTION = { label: 'True function', colour: INK, shape: 'line', width: 125 };
+
 const truth = objective => Array.from({ length: 501 }, (_, i) => ({ x: i / 500, y: evaluateObjective(objective, i / 500) }));
 
 export function gameSVG(match, { selected = null, reveal = false } = {}) {
@@ -53,7 +74,8 @@ export function gameSVG(match, { selected = null, reveal = false } = {}) {
   const known = reveal ? [...match.human, ...match.bo, ...truth(match.objective)] : match.human;
   const ymax = Math.max(1.8 * Math.sqrt(match.model.signalVariance), ...known.map(p => p.y * 1.16));
   const f = frame({ title: reveal ? 'Function and evaluated points' : 'Observed function values',
-    subtitle: reveal ? 'Purple squares: shared · Blue circles: you · Orange diamonds: BO · Dark line: function' : 'Purple squares: shared starting observations · Blue circles: your evaluations', ymax });
+    legend: [SHARED, { label: 'Your evaluations', colour: BLUE, shape: 'circle', width: 140 },
+      ...(reveal ? [BO, FUNCTION] : [])], ymax });
   let s = f.markup + `<g clip-path="url(#${f.clip})">`;
   if (reveal) s += `<path d="${path(truth(match.objective), f.X, f.Y)}" fill="none" stroke="${INK}" stroke-width="2.5"/>`;
   if (!reveal && selected !== null) {
@@ -80,7 +102,11 @@ export function replaySVG(match, index, { after = false, overlay = false, compac
   const ymin = Math.min(0, ...points.map(p => p.mean - 1.96 * p.sd));
   const ymax = Math.max(1.8 * Math.sqrt(match.model.signalVariance), ...points.map(p => p.mean + 1.96 * p.sd), ...truePoints.map(p => p.y * 1.1));
   const f = frame({ title: `BO turn ${index + 1} · ${after ? 'After evaluation' : 'Before evaluation'}`,
-    subtitle: 'GP mean and pointwise 95% interval · Purple squares: shared · Orange diamonds: BO', ymin, ymax, height: compact ? 220 : 390, compact });
+    legend: [SHARED, BO,
+      { label: 'GP posterior mean', colour: ORANGE, shape: 'line', width: 155 },
+      { label: 'Pointwise 95% interval', colour: '#fce8d9', shape: 'band', width: 170 },
+      ...(overlay ? [{ ...FUNCTION, dashed: true }] : [])],
+    ymin, ymax, height: compact ? 220 : 390, compact });
   const upper = points.map(p => ({ x: p.x, y: p.mean + 1.96 * p.sd }));
   const lower = [...points].reverse().map(p => ({ x: p.x, y: p.mean - 1.96 * p.sd }));
   let posterior = f.markup + `<g clip-path="url(#${f.clip})">`;
