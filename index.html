@@ -21,16 +21,12 @@
 
     <section id="setup" class="setup card" aria-labelledby="setup-title">
       <div class="setup-intro">
-        <h2 id="setup-title">Instructions</h2>
-        <ul id="game-instructions" class="challenge-rules">
-          <li>Your goal is to maximise a hidden function by finding the highest value you can with your available guesses.</li>
-          <li>You and Bayesian optimisation (BO) start with the same three observations, shown as purple squares.</li>
-          <li>The hidden function is smooth. Nearby inputs tend to give similar values, though peaks can be narrow.</li>
-          <li>Click the graph to choose an input, then select <strong>Evaluate guess</strong> to see its function value. You can also focus the graph and use the arrow keys to select an input.</li>
-          <li>BO makes one guess after yours using its own observations. Its guesses and results are revealed at the end.</li>
-          <li>You both get the same number of guesses. The highest observed value wins. After the match, you can replay BO’s decisions.</li>
-        </ul>
-        <button type="button" class="quiet" data-dialog="assumptions-dialog">BO assumptions</button>
+        <h2 id="setup-title">About the game</h2>
+        <div class="setup-help">
+          <button type="button" class="quiet" data-dialog="instructions-dialog">Instructions</button>
+          <button type="button" class="quiet" data-dialog="function-dialog">What we know about the hidden function</button>
+          <button type="button" class="quiet" data-dialog="assumptions-dialog">BO assumptions</button>
+        </div>
       </div>
       <form id="setup-form">
         <h3>Set up your match</h3>
@@ -83,14 +79,31 @@
   <dialog id="reset-dialog"><h2>Leave this match?</h2><p>Your current progress will be discarded.</p><div class="inline"><button id="cancel-reset" class="quiet">Keep playing</button><button id="confirm-reset" class="primary">Start a new game</button></div></dialog>
   <dialog id="instructions-dialog" aria-labelledby="instructions-title">
     <h2 id="instructions-title">Instructions</h2>
-    <div id="instructions-content"></div>
+    <ul class="challenge-rules">
+      <li>Your goal is to maximise a hidden function by finding the highest value you can with your available guesses.</li>
+      <li>You and Bayesian optimisation (BO) start with the same three observations, shown as purple squares.</li>
+      <li>Click the graph to choose an input, then select <strong>Evaluate guess</strong> to see its function value. You can also focus the graph and use the arrow keys to select an input.</li>
+      <li>BO makes one guess after yours using its own observations. Its guesses and results are revealed at the end.</li>
+      <li>You both get the same number of guesses. The highest observed value wins. After the match, you can replay BO’s decisions.</li>
+    </ul>
+    <form method="dialog"><button class="quiet">Close</button></form>
+  </dialog>
+  <dialog id="function-dialog" aria-labelledby="function-title">
+    <h2 id="function-title">What we know about the hidden function</h2>
+    <ul class="challenge-rules">
+      <li>The function is smooth on the interval from 0 to 1. Nearby inputs tend to give similar values.</li>
+      <li>The function can have several peaks of different widths. A narrow peak can sit between observations.</li>
+      <li>Values can be close to zero, and high points are typically in the hundreds.</li>
+    </ul>
     <form method="dialog"><button class="quiet">Close</button></form>
   </dialog>
   <dialog id="assumptions-dialog" aria-labelledby="assumptions-title">
     <h2 id="assumptions-title">BO assumptions</h2>
     <ul class="challenge-rules">
       <li><strong>Objective.</strong> One continuous input between 0 and 1. Each evaluation returns the exact function value, with no measurement noise.</li>
-      <li><strong>Surrogate model.</strong> A Gaussian process with zero prior mean and a squared-exponential kernel. The fixed length scale of 0.15 controls how quickly correlation decreases with distance. The prior standard deviation is <span id="prior-sd">200</span> in function-value units.</li>
+      <li><strong>Gaussian process (GP) prior.</strong> Before seeing any observations, BO assumes a mean of zero and uses a squared-exponential kernel. Its length scale of 0.15 controls how quickly correlation falls as inputs get farther apart.</li>
+      <li><strong>Prior standard deviation.</strong> The prior SD at each input is <span id="prior-sd">200</span> in function-value units. For new matches, we chose 200 by scaling the original unit SD by the same factor used to put scores on the scale of hundreds. This is a fixed modelling assumption based on the general score scale.</li>
+      <li><strong>Updating the model.</strong> BO conditions the GP on the three shared starting observations and updates it with its own evaluations. The prior settings stay fixed throughout the match.</li>
       <li><strong>Selection rule.</strong> Expected improvement estimates the average positive gain over BO’s best observed value under the current model. BO chooses the highest EI among 2,001 evenly spaced candidates, excluding its previous inputs, and evaluates one point per turn.</li>
       <li><strong>Replay.</strong> The shaded region is a pointwise 95% posterior interval under the model. The interval applies to each input individually.</li>
     </ul>

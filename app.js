@@ -11,9 +11,6 @@ let replayAfter = false;
 let pendingReset = null;
 let storageWarning = '';
 
-const instructions = $('game-instructions').cloneNode(true);
-instructions.removeAttribute('id');
-$('instructions-content').append(instructions);
 for (const button of document.querySelectorAll('[data-dialog]')) {
   button.addEventListener('click', () => {
     $('prior-sd').textContent = number(Math.sqrt(match?.model.signalVariance ?? GAME_VALUE_SCALE ** 2));
