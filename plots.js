@@ -14,6 +14,12 @@ function frame({ title, subtitle = '', legend = [], ymin = 0, ymax = 1.8, height
   const clip = 'clip-' + title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const w = 960, left = 82, right = 32, top = compact ? 60 : 76, bottom = compact ? 40 : 62;
   const pw = w - left - right, ph = height - top - bottom;
+  const targetTicks = compact && ph < 80 ? 2 : 4;
+  const roughStep = Math.max(1, (ymax - ymin) / targetTicks);
+  const magnitude = 10 ** Math.floor(Math.log10(roughStep));
+  const tickStep = [1, 2, 5, 10].map(factor => factor * magnitude).find(step => step >= roughStep);
+  ymin = Math.floor(ymin / tickStep) * tickStep;
+  ymax = Math.ceil(ymax / tickStep) * tickStep;
   const X = x => left + x * pw;
   const Y = y => top + (ymax - y) / (ymax - ymin) * ph;
   let markup = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${height}" role="img" aria-label="${escapeXML([title, subtitle, ...legend.map(item => item.label)].filter(Boolean).join('. '))}" style="font-family:system-ui,sans-serif;background:#fff;color:${INK}">
@@ -21,9 +27,7 @@ function frame({ title, subtitle = '', legend = [], ymin = 0, ymax = 1.8, height
     <text x="${left}" y="29" font-size="20" font-weight="650" fill="${INK}">${escapeXML(title)}</text>
     ${legend.length ? plotLegend(legend, left) : `<text x="${left}" y="52" font-size="13" fill="#52677a">${escapeXML(subtitle)}</text>`}
     <defs><clipPath id="${clip}"><rect x="${left - 9}" y="${top - 9}" width="${pw + 18}" height="${ph + 18}"/></clipPath></defs>`;
-  const ticks = compact && ph < 80 ? 2 : 4;
-  for (let i = 0; i <= ticks; i++) {
-    const value = ymin + (ymax - ymin) * i / ticks;
+  for (let value = ymin; value <= ymax; value += tickStep) {
     markup += `<path d="M${left},${Y(value)}H${w - right}" stroke="#e9edf2"/>
       <text x="${left - 14}" y="${Y(value) + 5}" text-anchor="end" font-size="14" fill="#52677a">${number(value)}</text>`;
   }
@@ -94,13 +98,18 @@ export function gameSVG(match, { selected = null, reveal = false } = {}) {
 export function replaySVG(match, index, { after = false, overlay = false, compact = false } = {}) {
   const step = match.history[index];
   if (!step) throw new Error('This replay step does not exist.');
-  const observations = after ? [...step.before, step.boResult] : step.before;
-  const grid = acquisitionGrid(observations, match.model);
-  // Thin only for plotting; acquisition selection always uses the full 2,001 points.
-  const points = grid.filter((_, i) => i % 4 === 0);
-  const truePoints = overlay ? truth(match.objective) : [];
-  const ymin = Math.min(0, ...points.map(p => p.mean - 1.96 * p.sd));
-  const ymax = Math.max(1.8 * Math.sqrt(match.model.signalVariance), ...points.map(p => p.mean + 1.96 * p.sd), ...truePoints.map(p => p.y * 1.1));
+  const afterObservations = [...step.before, step.boResult];
+  const observations = after ? afterObservations : step.before;
+  const beforeGrid = acquisitionGrid(step.before, match.model);
+  const afterGrid = acquisitionGrid(afterObservations, match.model);
+  // Use both posterior states to keep the plot scale fixed within this turn.
+  const domain = [...beforeGrid, ...afterGrid];
+  const truePoints = truth(match.objective);
+  const ymin = Math.min(0, ...domain.map(p => p.mean - 1.96 * p.sd));
+  const ymax = Math.max(1.8 * Math.sqrt(match.model.signalVariance),
+    ...domain.map(p => p.mean + 1.96 * p.sd), ...truePoints.map(p => p.y * 1.1));
+  // Thin only for plotting; acquisition selection uses the full grid.
+  const points = (after ? afterGrid : beforeGrid).filter((_, i) => i % 4 === 0);
   const f = frame({ title: `BO turn ${index + 1} · ${after ? 'After evaluation' : 'Before evaluation'}`,
     legend: [SHARED, BO,
       { label: 'GP posterior mean', colour: ORANGE, shape: 'line', width: 155 },
@@ -118,9 +127,8 @@ export function replaySVG(match, index, { after = false, overlay = false, compac
   for (const point of observations.slice(match.initial.length)) posterior += marker(point, f.X, f.Y, ORANGE, 'diamond');
   posterior += '</g></svg>';
   // Always preserve the actual pre-decision EI, even when showing the updated posterior.
-  const beforeGrid = after ? acquisitionGrid(step.before, match.model) : grid;
   const a = frame({ title: 'Expected improvement',
-    subtitle: after ? 'Original EI before this guess · The posterior above has now updated' : 'Highest EI on the candidate grid selects the next input',
+    subtitle: after ? 'Original EI before evaluation. The posterior above includes the new observation.' : 'EI before evaluation. The marker shows the highest value on the candidate grid.',
     ymax: Math.max(0.001, ...beforeGrid.map(p => p.ei * 1.15)), height: compact ? 150 : 250, label: 'Expected improvement', compact });
   const curve = beforeGrid.filter((_, i) => i % 4 === 0);
   const acquisition = a.markup + `<g clip-path="url(#${a.clip})"><path d="${path(curve, a.X, a.Y, 'ei')}" fill="none" stroke="${ORANGE}" stroke-width="2.5"/>
