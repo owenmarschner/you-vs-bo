@@ -1,5 +1,5 @@
-import { createMatch, takeTurn, validateGuess, bestValue, isComplete, scores, exportMatch, restoreMatch, STORAGE_KEY, GAME_VALUE_SCALE } from './match.js';
-import { gameSVG, replaySVG, replayExportSVG, number } from './plots.js';
+import { createMatch, takeTurn, validateGuess, bestValue, isComplete, scores, restoreMatch, STORAGE_KEY, GAME_VALUE_SCALE } from './match.js';
+import { gameSVG, replaySVG, number } from './plots.js';
 
 const $ = id => document.getElementById(id);
 let match = null;
@@ -67,7 +67,7 @@ function paintMatch() {
   $('game-plot').setAttribute('aria-label', complete ? 'Final function and observations' : 'Function observations. Use arrow keys to select an input.');
   $('evaluate').disabled = busy || selected === null;
   $('guess-form').hidden = complete;
-  $('exports').hidden = !complete;
+  $('match-actions').hidden = !complete;
   $('result').hidden = !complete;
   if (complete) {
     const score = scores(match);
@@ -199,6 +199,7 @@ $('guess-form').addEventListener('submit', async event => {
 });
 
 function paintReplay() {
+  $('replay-error').hidden = true;
   try {
     const turn = match.history[replayIndex];
     const compact = window.matchMedia('(min-width: 900px) and (max-height: 800px)').matches;
@@ -209,8 +210,8 @@ function paintReplay() {
     $('next').disabled = replayIndex === match.history.length - 1;
     $('replay-step').value = String(replayIndex);
     $('replay-stats').replaceChildren(...[
-      ['Selected input x', turn.proposal.x], ['Predicted mean μ', turn.proposal.mean],
-      ['Uncertainty σ', turn.proposal.sd], ['Expected improvement', turn.proposal.ei],
+      ['Selected input x', turn.proposal.x], ['Mean before evaluation μ', turn.proposal.mean],
+      ['SD before evaluation σ', turn.proposal.sd], ['Expected improvement', turn.proposal.ei],
     ].map(([label, value]) => {
       const div = document.createElement('div');
       const caption = document.createElement('span'); caption.textContent = label;
@@ -218,11 +219,9 @@ function paintReplay() {
       div.append(caption, strong); return div;
     }));
     $('reveal-step').textContent = replayAfter ? 'Show before evaluation' : 'Reveal this evaluation';
-    $('replay-explanation').textContent = replayAfter
-      ? `Observed f(${number(turn.boResult.x)}) = ${number(turn.boResult.y)}. The posterior above now includes this observation; EI below preserves the original decision.`
-      : `With ${turn.before.length} observations, BO chose the input with the highest expected positive gain over its best observed value, ${number(bestValue(turn.before))}. The outcome is not yet shown.`;
   } catch (error) {
-    $('replay-explanation').textContent = `Replay paused: ${error.message} The completed match is unchanged.`;
+    $('replay-error').textContent = error.message;
+    $('replay-error').hidden = false;
   }
 }
 
@@ -243,17 +242,6 @@ $('replay-step').addEventListener('change', () => { replayIndex = Number($('repl
 $('overlay').addEventListener('change', paintReplay);
 $('reveal-step').addEventListener('click', () => { replayAfter = !replayAfter; paintReplay(); });
 window.addEventListener('resize', () => { if (!$('replay').hidden) paintReplay(); });
-
-function download(content, filename, type) {
-  const url = URL.createObjectURL(new Blob([content], { type }));
-  const link = document.createElement('a');
-  link.href = url; link.download = filename;
-  document.body.append(link); link.click(); link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-$('export-json').addEventListener('click', () => download(JSON.stringify(exportMatch(match), null, 2), 'you-vs-bo-match.json', 'application/json'));
-$('export-reveal').addEventListener('click', () => download(gameSVG(match, { reveal: true }), 'you-vs-bo-reveal.svg', 'image/svg+xml'));
-$('export-replay').addEventListener('click', () => download(replayExportSVG(match, replayIndex, { after: replayAfter, overlay: $('overlay').checked }), `you-vs-bo-turn-${replayIndex + 1}-${replayAfter ? 'after' : 'before'}.svg`, 'image/svg+xml'));
 
 try {
   const stored = localStorage.getItem(STORAGE_KEY);

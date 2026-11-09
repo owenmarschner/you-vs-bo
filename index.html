@@ -54,7 +54,9 @@
       <div class="card plot-card">
         <div class="plot-controls">
           <div class="inline">
+            <button type="button" class="quiet" data-dialog="goal-dialog">Goal</button>
             <button type="button" class="quiet" data-dialog="instructions-dialog">Instructions</button>
+            <button type="button" class="quiet" data-dialog="function-dialog">What we know about the hidden function</button>
             <button type="button" class="quiet" data-dialog="assumptions-dialog">BO Assumptions</button>
           </div>
           <form id="guess-form" class="guess-controls">
@@ -65,14 +67,15 @@
         </div>
         <div id="game-plot" class="plot" aria-label="Function observation plot"></div>
       </div>
-      <div id="exports" class="export-controls" hidden><button id="export-json" class="quiet">Export match JSON</button><button id="export-reveal" class="quiet">Export reveal SVG</button><button id="same-game" class="quiet">Play this seed again</button></div>
+      <div id="match-actions" class="match-actions" hidden><button id="same-game" class="quiet">Play this seed again</button></div>
     </section>
 
     <section id="replay" class="card replay" hidden aria-labelledby="replay-title">
       <div class="replay-heading"><h2 id="replay-title">BO decisions</h2><div class="inline"><button type="button" class="quiet" data-dialog="assumptions-dialog">BO Assumptions</button><button id="close-replay" class="quiet">Back to results</button></div></div>
       <div class="replay-controls"><button id="previous" class="quiet">← Previous</button><label for="replay-step">BO turn <select id="replay-step"></select></label><button id="next" class="quiet">Next →</button><label class="checkbox"><input id="overlay" type="checkbox"> Show hidden function as reference</label></div>
       <div class="replay-stats" id="replay-stats"></div>
-      <div class="replay-bottom"><button id="reveal-step" class="primary">Reveal this evaluation</button><p id="replay-explanation" role="status" aria-live="polite"></p><button id="export-replay" class="quiet">Export replay SVG</button></div>
+      <div class="replay-bottom"><button id="reveal-step" class="primary">Reveal this evaluation</button></div>
+      <p id="replay-error" class="error" role="alert" hidden></p>
       <div id="posterior-plot" class="plot"></div><div id="acquisition-plot" class="plot"></div>
     </section>
     <footer><span>Group 14 · Perspectives in Mathematics</span></footer>
@@ -109,6 +112,7 @@
       <li><strong>Length scale.</strong> The fixed value of 0.15 is 15% of the input range. It lets nearby observations inform the prediction while allowing several peaks across the interval. The appropriate value depends on the function.</li>
       <li><strong>Prior standard deviation.</strong> BO uses a fixed SD of <span id="prior-sd">200</span> at each input. For scores on the scale of hundreds, 200 is a rough estimate of uncertainty before seeing any observations.</li>
       <li><strong>Choosing a guess.</strong> BO updates the GP with its observations and chooses the unevaluated grid point with the highest expected improvement over its best observed value.</li>
+      <li><strong>Replay uncertainty.</strong> The shaded band runs from the posterior mean minus 1.96σ to the mean plus 1.96σ at each input. The σ shown for the selected input is calculated before evaluation.</li>
     </ul>
     <form method="dialog"><button class="quiet">Close</button></form>
   </dialog>

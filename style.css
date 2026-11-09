@@ -57,6 +57,7 @@ output { display: grid; place-items: center; min-width: 44px; height: 44px; bord
 #game-plot.playing { cursor: crosshair; }
 .plot-controls { padding: 18px 24px 12px; border-bottom: 1px solid var(--line); }
 .guess-controls { display: flex; align-items: center; gap: 14px; margin-top: 12px; }
+.plot-controls .quiet { white-space: normal; }
 .plot-controls .inline, .replay-heading .inline { flex-wrap: wrap; }
 .plot-controls .status { margin: 8px 0 0; min-height: 0; }
 .plot-controls .status:empty, #result-detail:empty { display: none; }
@@ -65,7 +66,7 @@ output { display: grid; place-items: center; min-width: 44px; height: 44px; bord
 .error, .status.error { color: #a32229; }
 .error { margin-top: 10px; font-size: 14px; }
 .result { display: flex; justify-content: space-between; align-items: center; padding: 23px 28px; gap: 22px; background: #eaf1fb; border: 1px solid #c8d9f2; border-radius: 12px; margin-bottom: 18px; }
-.export-controls { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.match-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
 .replay { margin-top: 24px; padding: 26px; }
 .replay-heading { display: flex; justify-content: space-between; align-items: center; gap: 18px; }
 .replay-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 22px 0 14px; }
@@ -78,7 +79,6 @@ output { display: grid; place-items: center; min-width: 44px; height: 44px; bord
 .replay-stats span { display: block; font-size: 11px; color: var(--muted); }
 .replay-stats strong { font-size: 19px; font-variant-numeric: tabular-nums; }
 .replay-bottom { display: flex; gap: 16px; align-items: center; margin: 12px 0 16px; }
-.replay-bottom p { flex: 1; font-size: 13px; }
 footer { display: flex; justify-content: space-between; gap: 12px; padding: 25px 0 0; color: #647588; font-size: 11px; }
 dialog { max-width: min(580px, 90vw); max-height: 85vh; border: 1px solid var(--line); border-radius: 15px; padding: 30px; color: var(--ink); }
 dialog::backdrop { background: #192d4366; }
