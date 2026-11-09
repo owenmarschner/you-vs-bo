@@ -183,7 +183,12 @@ $('guess-form').addEventListener('submit', async event => {
   // Yield for controls and the live status to paint before numerical work.
   await new Promise(resolve => setTimeout(resolve, 60));
   try {
-    match = takeTurn(match, x);
+    try {
+      match = takeTurn(match, x);
+    } catch (error) {
+      status(`Search paused: ${error.message} No guesses were used. You can retry or start a new game.`, true);
+      return;
+    }
     selected = null;
     persist();
     paintMatch();
@@ -191,7 +196,9 @@ $('guess-form').addEventListener('submit', async event => {
       status(`Your guess: f(${number(x)}) = ${number(match.human.at(-1).y)}. BO has completed its evaluation.`);
     }
   } catch (error) {
-    status(`Search paused: ${error.message} No guesses were used. You can retry or start a new game.`, true);
+    const recovery = storageWarning ? 'Keep this tab open.' : 'Reload and reopen your saved match.';
+    status(`Both evaluations finished, but the match screen could not update. ${recovery}`, true);
+    console.error(error);
   } finally {
     lockControls(false);
     if (match && !isComplete(match)) $('game-plot').focus({ preventScroll: true });
