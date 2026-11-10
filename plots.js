@@ -82,8 +82,11 @@ export function gameSVG(match, { selected = null, reveal = false } = {}) {
       ...(reveal ? [BO, FUNCTION] : [])], ymax });
   let s = f.markup + `<g clip-path="url(#${f.clip})">`;
   if (reveal) s += `<path d="${path(truth(match.objective), f.X, f.Y)}" fill="none" stroke="${INK}" stroke-width="2.5"/>`;
+  if (!reveal) {
+    s += `<line data-hover-guide y1="${f.top}" y2="${f.end}" stroke="${BLUE}" stroke-dasharray="2 4" stroke-width="1.5" opacity="0" pointer-events="none"/>`;
+  }
   if (!reveal && selected !== null) {
-    s += `<path d="M${f.X(selected)},${f.top}V${f.end}" stroke="${BLUE}" stroke-dasharray="5 5" stroke-width="1.8"/>
+    s += `<path d="M${f.X(selected)},${f.top}V${f.end}" stroke="${BLUE}" stroke-dasharray="5 5" stroke-width="2.5"/>
       <text x="${Math.min(790, Math.max(90, f.X(selected) + 10))}" y="${f.top + 18}" fill="${BLUE}" font-size="14">Selected x = ${number(selected)}</text>`;
   }
   if (reveal) for (const point of match.bo.slice(match.initial.length)) s += marker(point, f.X, f.Y, ORANGE, 'diamond', 7);
@@ -95,19 +98,39 @@ export function gameSVG(match, { selected = null, reveal = false } = {}) {
   return s + '</g></svg>';
 }
 
+const replayPlots = new WeakMap();
+
+function replayPlotData(match) {
+  const cached = replayPlots.get(match);
+  if (cached) return cached;
+
+  // Each pre-decision grid also gives the previous turn's updated posterior.
+  const last = match.history.at(-1);
+  const beforeGrids = match.history.map(step => acquisitionGrid(step.before, match.model));
+  const finalGrid = acquisitionGrid([...last.before, last.boResult], match.model);
+  const truePoints = truth(match.objective);
+  let ymin = 0;
+  let ymax = Math.max(1.8 * Math.sqrt(match.model.signalVariance), ...truePoints.map(p => p.y * 1.1));
+  let eiMax = 0.001;
+  for (const grid of [...beforeGrids, finalGrid]) {
+    for (const point of grid) {
+      ymin = Math.min(ymin, point.mean - 1.96 * point.sd);
+      ymax = Math.max(ymax, point.mean + 1.96 * point.sd);
+      if (grid !== finalGrid) eiMax = Math.max(eiMax, point.ei * 1.15);
+    }
+  }
+  const data = { beforeGrids, finalGrid, truePoints, ymin, ymax, eiMax };
+  replayPlots.set(match, data);
+  return data;
+}
+
 export function replaySVG(match, index, { after = false, overlay = false, compact = false } = {}) {
   const step = match.history[index];
   if (!step) throw new Error('This replay step does not exist.');
-  const afterObservations = [...step.before, step.boResult];
-  const observations = after ? afterObservations : step.before;
-  const beforeGrid = acquisitionGrid(step.before, match.model);
-  const afterGrid = acquisitionGrid(afterObservations, match.model);
-  // Use both posterior states to keep the plot scale fixed within this turn.
-  const domain = [...beforeGrid, ...afterGrid];
-  const truePoints = truth(match.objective);
-  const ymin = Math.min(0, ...domain.map(p => p.mean - 1.96 * p.sd));
-  const ymax = Math.max(1.8 * Math.sqrt(match.model.signalVariance),
-    ...domain.map(p => p.mean + 1.96 * p.sd), ...truePoints.map(p => p.y * 1.1));
+  const observations = after ? [...step.before, step.boResult] : step.before;
+  const { beforeGrids, finalGrid, truePoints, ymin, ymax, eiMax } = replayPlotData(match);
+  const beforeGrid = beforeGrids[index];
+  const afterGrid = beforeGrids[index + 1] ?? finalGrid;
   // Thin only for plotting; acquisition selection uses the full grid.
   const points = (after ? afterGrid : beforeGrid).filter((_, i) => i % 4 === 0);
   const f = frame({ title: `BO turn ${index + 1} · ${after ? 'After evaluation' : 'Before evaluation'}`,
@@ -129,7 +152,7 @@ export function replaySVG(match, index, { after = false, overlay = false, compac
   // Always preserve the actual pre-decision EI, even when showing the updated posterior.
   const a = frame({ title: 'Expected improvement',
     subtitle: after ? 'Original EI before evaluation. The posterior above includes the new observation.' : 'EI before evaluation. The marker shows the highest value on the candidate grid.',
-    ymax: Math.max(0.001, ...beforeGrid.map(p => p.ei * 1.15)), height: compact ? 150 : 250, label: 'Expected improvement', compact });
+    ymax: eiMax, height: compact ? 150 : 250, label: 'Expected improvement', compact });
   const curve = beforeGrid.filter((_, i) => i % 4 === 0);
   const acquisition = a.markup + `<g clip-path="url(#${a.clip})"><path d="${path(curve, a.X, a.Y, 'ei')}" fill="none" stroke="${ORANGE}" stroke-width="2.5"/>
     <path d="M${a.X(step.proposal.x)},${a.top}V${a.end}" stroke="${ORANGE}" stroke-dasharray="4 4"/>

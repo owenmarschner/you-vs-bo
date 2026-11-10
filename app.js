@@ -1,5 +1,5 @@
 import { createMatch, takeTurn, validateGuess, bestValue, isComplete, scores, restoreMatch, STORAGE_KEY, GAME_VALUE_SCALE } from './match.js';
-import { gameSVG, replaySVG, number } from './plots.js';
+import { gameSVG, replaySVG, number } from './plots.js?v=replay-controls';
 
 const $ = id => document.getElementById(id);
 let match = null;
@@ -39,6 +39,7 @@ function clearSaved() {
 
 function lockControls(locked) {
   busy = locked;
+  if (locked) $('game-plot').querySelector('[data-hover-guide]')?.setAttribute('opacity', '0');
   $('new-game').disabled = locked;
   $('evaluate').disabled = locked || selected === null;
   $('guess-form').setAttribute('aria-busy', String(locked));
@@ -157,9 +158,9 @@ $('game-plot').addEventListener('keydown', event => {
   selectInput(Math.max(0, Math.min(100, step)) / 100);
 });
 
-$('game-plot').addEventListener('click', event => {
-  if (!match || busy || isComplete(match)) return;
-  const svg = $('game-plot').querySelector('svg');
+function plotInput(event) {
+  if (!match || busy || isComplete(match)) return null;
+  const svg = event.currentTarget.querySelector('svg');
   const box = svg.getBoundingClientRect();
   // Account for SVG letterboxing on short presentation screens.
   const scale = Math.min(box.width / 960, box.height / 440);
@@ -167,8 +168,32 @@ $('game-plot').addEventListener('click', event => {
   const offsetY = (box.height - 440 * scale) / 2;
   const sx = (event.clientX - box.left - offsetX) / scale;
   const sy = (event.clientY - box.top - offsetY) / scale;
-  if (sx < 82 || sx > 928 || sy < 76 || sy > 378) return;
-  selectInput(Math.round((sx - 82) / 846 * 100) / 100);
+  if (sx < 82 || sx > 928 || sy < 76 || sy > 378) return null;
+  return Math.round((sx - 82) / 846 * 100) / 100;
+}
+
+$('game-plot').addEventListener('pointermove', event => {
+  const guide = event.currentTarget.querySelector('[data-hover-guide]');
+  if (!guide) return;
+  const x = plotInput(event);
+  if (x === null || x === selected || event.pointerType === 'touch') {
+    guide.setAttribute('opacity', '0');
+    return;
+  }
+  const position = 82 + 846 * x;
+  guide.setAttribute('x1', position);
+  guide.setAttribute('x2', position);
+  guide.setAttribute('opacity', '0.4');
+});
+
+$('game-plot').addEventListener('pointerleave', event => {
+  event.currentTarget.querySelector('[data-hover-guide]')?.setAttribute('opacity', '0');
+});
+
+$('game-plot').addEventListener('click', event => {
+  const x = plotInput(event);
+  if (x === null) return;
+  selectInput(x);
   $('evaluate').focus({ preventScroll: true });
 });
 
@@ -215,7 +240,7 @@ function paintReplay() {
     $('acquisition-plot').innerHTML = pictures.acquisition;
     $('previous').disabled = replayIndex === 0;
     $('next').disabled = replayIndex === match.history.length - 1;
-    $('replay-step').value = String(replayIndex);
+    $('replay-step').textContent = `BO turn ${replayIndex + 1} of ${match.history.length}`;
     $('replay-stats').replaceChildren(...[
       ['Selected input x', turn.proposal.x], ['Mean before evaluation μ', turn.proposal.mean],
       ['SD before evaluation σ', turn.proposal.sd], ['Expected improvement', turn.proposal.ei],
@@ -235,7 +260,6 @@ function paintReplay() {
 $('open-replay').addEventListener('click', () => {
   if (!match || !isComplete(match)) return;
   replayIndex = 0; replayAfter = false; $('overlay').checked = false;
-  $('replay-step').replaceChildren(...match.history.map((_, i) => new Option(String(i + 1), String(i))));
   $('arena').hidden = true;
   $('replay').hidden = false;
   document.body.classList.add('replay-mode');
@@ -245,7 +269,6 @@ $('open-replay').addEventListener('click', () => {
 $('close-replay').addEventListener('click', () => { paintMatch(); $('result').scrollIntoView({ block: 'start' }); });
 $('previous').addEventListener('click', () => { replayIndex--; replayAfter = false; paintReplay(); });
 $('next').addEventListener('click', () => { replayIndex++; replayAfter = false; paintReplay(); });
-$('replay-step').addEventListener('change', () => { replayIndex = Number($('replay-step').value); replayAfter = false; paintReplay(); });
 $('overlay').addEventListener('change', paintReplay);
 $('reveal-step').addEventListener('click', () => { replayAfter = !replayAfter; paintReplay(); });
 window.addEventListener('resize', () => { if (!$('replay').hidden) paintReplay(); });

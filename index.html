@@ -6,15 +6,15 @@
   <meta name="description" content="A local educational game about searching an unknown function with Bayesian optimisation.">
   <title>You vs Bayesian Optimisation</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="style.css">
-  <script type="module" src="app.js?v=results-fix"></script>
+  <link rel="stylesheet" href="style.css?v=replay-controls">
+  <script type="module" src="app.js?v=replay-controls"></script>
 </head>
 <body>
   <main>
     <header class="masthead">
       <div>
         <h1>You <span>vs</span> Bayesian Optimisation</h1>
-        <p class="intro">Highest evaluation wins.</p>
+        <p class="intro">Guess where the highest point in an unknown function is. See if you can beat BO using the same amount of guesses.</p>
       </div>
       <button id="new-game" class="quiet" hidden>New game</button>
     </header>
@@ -22,8 +22,8 @@
     <section id="setup" class="setup card" aria-labelledby="setup-title">
       <div class="setup-intro">
         <h2 id="setup-title">About the game</h2>
+        <p class="goal"><strong>GOAL:</strong> Maximise the hidden function by finding the highest value you can with your available guesses. The highest observed value wins.</p>
         <div class="setup-help">
-          <button type="button" class="quiet" data-dialog="goal-dialog">Goal</button>
           <button type="button" class="quiet" data-dialog="instructions-dialog">Instructions</button>
           <button type="button" class="quiet" data-dialog="function-dialog">What we know about the hidden function</button>
           <button type="button" class="quiet" data-dialog="assumptions-dialog">BO Assumptions</button>
@@ -53,8 +53,8 @@
       <div id="result" class="result" hidden><div><h2 id="result-title"></h2><p id="result-detail"></p></div><button id="open-replay" class="primary">Explain BO choices</button></div>
       <div class="card plot-card">
         <div class="plot-controls">
+          <p class="goal"><strong>GOAL:</strong> Maximise the hidden function by finding the highest value you can with your available guesses. The highest observed value wins.</p>
           <div class="inline">
-            <button type="button" class="quiet" data-dialog="goal-dialog">Goal</button>
             <button type="button" class="quiet" data-dialog="instructions-dialog">Instructions</button>
             <button type="button" class="quiet" data-dialog="function-dialog">What we know about the hidden function</button>
             <button type="button" class="quiet" data-dialog="assumptions-dialog">BO Assumptions</button>
@@ -72,27 +72,22 @@
 
     <section id="replay" class="card replay" hidden aria-labelledby="replay-title">
       <div class="replay-heading"><h2 id="replay-title">BO decisions</h2><div class="inline"><button type="button" class="quiet" data-dialog="assumptions-dialog">BO Assumptions</button><button id="close-replay" class="quiet">Back to results</button></div></div>
-      <div class="replay-controls"><button id="previous" class="quiet">← Previous</button><label for="replay-step">BO turn <select id="replay-step"></select></label><button id="next" class="quiet">Next →</button><label class="checkbox"><input id="overlay" type="checkbox"> Show hidden function as reference</label></div>
+      <div class="replay-controls"><button id="previous" class="quiet">← Previous</button><span id="replay-step" aria-live="polite"></span><button id="next" class="quiet">Next →</button></div>
       <div class="replay-stats" id="replay-stats"></div>
-      <div class="replay-bottom"><button id="reveal-step" class="primary">Reveal this evaluation</button></div>
+      <div class="replay-bottom"><button id="reveal-step" class="primary">Reveal this evaluation</button><label class="checkbox"><input id="overlay" type="checkbox"> Show hidden function as reference</label></div>
       <p id="replay-error" class="error" role="alert" hidden></p>
       <div id="posterior-plot" class="plot"></div><div id="acquisition-plot" class="plot"></div>
     </section>
     <footer><span>Group 14 · Perspectives in Mathematics</span></footer>
   </main>
   <dialog id="reset-dialog"><h2>Leave this match?</h2><p>Your current progress will be discarded.</p><div class="inline"><button id="cancel-reset" class="quiet">Keep playing</button><button id="confirm-reset" class="primary">Start a new game</button></div></dialog>
-  <dialog id="goal-dialog" aria-labelledby="goal-title">
-    <h2 id="goal-title">Goal</h2>
-    <p>Maximise the hidden function by finding the highest value you can with your available guesses. The highest observed value wins.</p>
-    <form method="dialog"><button class="quiet">Close</button></form>
-  </dialog>
   <dialog id="instructions-dialog" aria-labelledby="instructions-title">
     <h2 id="instructions-title">Instructions</h2>
     <ul class="challenge-rules">
       <li>You and Bayesian optimisation (BO) start with the same three observations, shown as purple squares.</li>
-      <li>Click the graph to choose an input, then select <strong>Evaluate guess</strong> to see its function value. You can also focus the graph and use the arrow keys to select an input.</li>
-      <li>BO makes one guess after yours using its own observations. Its guesses and results are revealed at the end.</li>
-      <li>You both get the same number of guesses. After the match, you can replay BO’s decisions.</li>
+      <li>Click the graph to choose an input, then select <strong>Evaluate guess</strong> to see its function value. BO makes one guess after yours using its own observations.</li>
+      <li>Once you have used your guesses, BO's results are revealed and the winner is crowned.</li>
+      <li>You can explore its decision making process after the match.</li>
     </ul>
     <form method="dialog"><button class="quiet">Close</button></form>
   </dialog>
@@ -109,7 +104,7 @@
     <h2 id="assumptions-title">BO Assumptions</h2>
     <ul class="challenge-rules">
       <li><strong>GP prior.</strong> BO starts with a zero-mean Gaussian process and a squared-exponential kernel, a common choice for smooth functions. Evaluations are noise-free.</li>
-      <li><strong>Length scale.</strong> The fixed value of 0.15 is 15% of the input range. It lets nearby observations inform the prediction while allowing several peaks across the interval. The appropriate value depends on the function.</li>
+      <li><strong>Length scale.</strong> BO uses 0.15 as the fixed length scale for correlated function values. This means, for example, it assumes about 0.61 correlation to the function values at <var>x</var> = 0.50 and <var>x</var> = 0.65, which are one length scale apart.</li>
       <li><strong>Prior standard deviation.</strong> BO uses a fixed SD of <span id="prior-sd">200</span> at each input. For scores on the scale of hundreds, 200 is a rough estimate of uncertainty before seeing any observations.</li>
       <li><strong>Choosing a guess.</strong> BO updates the GP with its observations and chooses the unevaluated grid point with the highest expected improvement over its best observed value.</li>
       <li><strong>Replay uncertainty.</strong> The shaded band runs from the posterior mean minus 1.96σ to the mean plus 1.96σ at each input. The σ shown for the selected input is calculated before evaluation.</li>
